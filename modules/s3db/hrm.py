@@ -5616,8 +5616,7 @@ def hrm_rheader(r, tabs=[],
         experience_tab = None
         service_record = ""
         tbl = TABLE(TR(TH(name,
-                          # @ToDo: Move to CSS
-                          _style="padding-top:15px")
+                          _class="hrm-rheader-person-header")
                        ))
         experience_tab2 = None
         if group == "volunteer":
@@ -5685,16 +5684,13 @@ def hrm_rheader(r, tabs=[],
                                                                         ).first()
                         if row and row.active:
                             active = TD(DIV(T("Yes"),
-                                            # @ToDo: Move to CSS
-                                            _style="color:green"))
+                                            _class="hrm-vol-active"))
                         else:
                             active = TD(DIV(T("No"),
-                                            # @ToDo: Move to CSS
-                                            _style="color:red"))
+                                            _class="hrm-vol-inactive"))
                     else:
                         active = TD(DIV(T("No"),
-                                        # @ToDo: Move to CSS
-                                        _style="color:red"))
+                                        _class="hrm-vol-inactive"))
                     vol_active_tooltip = settings.get_hrm_vol_active_tooltip()
                     if vol_active_tooltip:
                         tooltip = SPAN(_class="tooltip",
@@ -5737,8 +5733,7 @@ def hrm_rheader(r, tabs=[],
                                        _id = "service_record",
                                        _class = "action-btn"
                                       ),
-                                    # @ToDo: Move to CSS
-                                    _style="margin-bottom:10px"
+                                     _class="hrm-service-record"
                                     )
                 if vol_experience == "both" and not use_cv:
                     experience_tab2 = (T("Experience"), "experience")
