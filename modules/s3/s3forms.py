@@ -2,7 +2,7 @@
 
 """ S3 SQL Forms
 
-    @copyright: 2012-14 (c) Sahana Software Foundation
+    @copyright: 2012-15 (c) Sahana Software Foundation
     @license: MIT
 
     Permission is hereby granted, free of charge, to any person
@@ -1902,7 +1902,7 @@ class S3SQLSubFormLayout(object):
         #appname = current.request.application
         #scripts = current.response.s3.scripts
 
-        #script = "/%s/static/themes/CRMT2/js/inlinecomponent.layout.js" % appname
+        #script = "/%s/static/themes/CRMT/js/inlinecomponent.layout.js" % appname
         #if script not in scripts:
             #scripts.append(script)
 
@@ -2054,7 +2054,7 @@ class S3SQLInlineComponent(S3SQLSubForm):
                 orderby = component.get_config("orderby")
 
             if record_id:
-                if "filterby" in self.options:
+                if "filterby" in options:
                     # Filter
                     f = self._filterby_query()
                     if f is not None:
@@ -2065,8 +2065,11 @@ class S3SQLInlineComponent(S3SQLSubForm):
                 else:
                     extra_fields = []
                 all_fields = fields + virtual_fields + extra_fields
+                start = 0
+                limit = 1 if options.multiple is False else None
                 data = component.select(all_fields,
-                                        limit=None,
+                                        start=start,
+                                        limit=limit,
                                         represent=True,
                                         raw_data=True,
                                         show_links=False,

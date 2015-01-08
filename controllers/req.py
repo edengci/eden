@@ -211,25 +211,25 @@ def req_controller(template = False):
         #    s3db.configure("req_req", list_fields=list_fields)
 
         type = (r.record and r.record.type) or \
-               (request.vars.type and int(request.vars.type))
+               (get_vars.type and int(get_vars.type))
 
         if r.interactive:
             # Set the req_item site_id (Requested From), called from action buttons on req/req_item_inv_item/x page
-            if "req_item_id" in request.vars and "inv_item_id" in request.vars:
+            if "req_item_id" in get_vars and "inv_item_id" in get_vars:
                 iitable = s3db.inv_inv_item
-                inv_item = db(iitable.id == request.vars.inv_item_id).select(iitable.site_id,
-                                                                             iitable.item_id,
-                                                                             limitby=(0, 1)
-                                                                             ).first()
+                inv_item = db(iitable.id == get_vars.inv_item_id).select(iitable.site_id,
+                                                                         iitable.item_id,
+                                                                         limitby=(0, 1)
+                                                                         ).first()
                 site_id = inv_item.site_id
                 item_id = inv_item.item_id
                 # @ToDo: Check Permissions & Avoid DB updates in GETs
-                db(s3db.req_req_item.id == request.vars.req_item_id).update(site_id = site_id)
+                db(s3db.req_req_item.id == get_vars.req_item_id).update(site_id = site_id)
                 response.confirmation = T("%(item)s requested from %(site)s") % \
                     {"item": s3db.supply_ItemRepresent()(item_id),
                      "site": s3db.org_SiteRepresent()(site_id)
                      }
-            elif "req.site_id" in r.get_vars:
+            elif "req.site_id" in get_vars:
                 # Called from 'Make new request' button on [siteinstance]/req page
                 table.site_id.default = get_vars.get("req.site_id")
                 table.site_id.writable = False
@@ -282,7 +282,7 @@ def req_controller(template = False):
                 table.recv_by_id.label = T("Reported To")
 
             if r.component:
-                if r.component.name == "document":
+                if r.component_name == "document":
                     s3.crud.submit_button = T("Add")
                     #table = r.component.table
                     # @ToDo: Fix for Link Table
@@ -297,12 +297,12 @@ def req_controller(template = False):
                     #        table.location_id.default = site.location_id
                     #        table.organisation_id.default = site.organisation_id
 
-                elif r.component.name == "req_item":
+                elif r.component_name == "req_item":
                     ctable = r.component.table
                     ctable.site_id.writable = ctable.site_id.readable = False
                     s3.req_hide_quantities(ctable)
 
-                elif r.component.name == "req_skill":
+                elif r.component_name == "req_skill":
                     s3.req_hide_quantities(r.component.table)
 
                 elif r.component.alias == "job":
@@ -341,15 +341,15 @@ def req_controller(template = False):
                         if not table.site_id.default:
                             table.site_id.default = auth.user.site_id
 
-                elif method == "map":
-                    # Tell the client to request per-feature markers
-                    s3db.configure("req_req", marker_fn=marker_fn)
-
                 elif method == "update":
                     if settings.get_req_inline_forms():
                         # Inline Forms
                         s3.req_inline_form(type, method)
                     s3.scripts.append("/%s/static/scripts/S3/s3.req_update.js" % appname)
+
+                elif method == "map":
+                    # Tell the client to request per-feature markers
+                    s3db.configure("req_req", marker_fn=marker_fn)
 
             # Prevent Items from being added to closed or cancelled requests
             if r.record and (r.record.closed or r.record.cancel):
@@ -366,7 +366,9 @@ def req_controller(template = False):
                 req_ref_represent(v, show_link)
             # Load these models now as they'll be needed when we encode
             mtable = s3db.gis_marker
-            s3db.configure("req_req", marker_fn=marker_fn)
+            s3db.configure("req_req",
+                           marker_fn = marker_fn,
+                           )
 
         if r.component and r.component.name == "commit":
             table = r.component.table
@@ -376,10 +378,10 @@ def req_controller(template = False):
 
             # Commits belonging to this request
             rsites = []
-            query = (table.deleted == False)&(table.req_id == record.id)
+            query = (table.deleted == False) & (table.req_id == record.id)
             req_sites = db(query).select(table.site_id)
             for req_site in req_sites:
-                rsites += [req_site.site_id]
+                rsites.append(req_site.site_id)
 
             # All the sites
             commit_sites = db((stable.deleted == False)).select(stable.id,
@@ -413,15 +415,13 @@ def req_controller(template = False):
                     # Dropdown not Autocomplete
                     itable = s3db.req_commit_item
                     itable.req_item_id.widget = None
-                    req_id = r.id
-                    s3db.req_commit_item.req_item_id.requires = \
-                                    IS_ONE_OF(db,
-                                              "req_req_item.id",
+                    itable.req_item_id.requires = \
+                                    IS_ONE_OF(db, "req_req_item.id",
                                               s3db.req_item_represent,
-                                              orderby = "req_req_item.id",
                                               filterby = "req_id",
-                                              filter_opts = [req_id],
-                                              sort=True
+                                              filter_opts = [r.id],
+                                              orderby = "req_req_item.id",
+                                              sort = True,
                                               )
                     s3.jquery_ready.append('''
 $.filterOptionsS3({
@@ -466,7 +466,7 @@ $.filterOptionsS3({
             elif type == 3: # People
                 # Limit site_id to orgs the user has permissions for
                 # @ToDo: Make this customisable between Site/Org
-                # @ToDo: is_affiliated()
+                # @ToDo: is_affiliated() once Org is possible
                 auth.permitted_facilities(table=r.table,
                                           error_msg=T("You do not have permission for any facility to make a commitment."))
                 # Limit organisation_id to organisations the user has permissions for
@@ -657,9 +657,70 @@ S3.confirmClick('#commit-btn','%s')''' % T("Do you want to commit to this reques
         return output
     s3.postp = postp
 
-    return s3_rest_controller("req", "req", rheader = s3db.req_rheader)
+    return s3_rest_controller("req", "req",
+                              rheader = s3db.req_rheader)
 
 # =============================================================================
+<<<<<<< HEAD
+=======
+def requester_represent(id, show_link=True):
+    """
+        Represent a Requester as Name + Tel#
+
+        @ToDo: Migrate to S3Represent
+    """
+
+    if not id:
+        return current.messages["NONE"]
+
+    if settings.has_module("hrm"):
+        has_hrm = True
+    else:
+        has_hrm = False
+
+    ptable = s3db.pr_person
+    ctable = s3db.pr_contact
+
+    query = (ptable.id == id)
+    left = ctable.on((ctable.pe_id == ptable.pe_id) & \
+                     (ctable.contact_method == "SMS"))
+    fields = [ptable.first_name,
+              ptable.middle_name,
+              ptable.last_name,
+              ctable.value,
+              ]
+    if has_hrm:
+        htable = s3db.hrm_human_resource
+        left = [left, htable.on(htable.person_id == ptable.id)]
+        fields.append(htable.type)
+    row = db(query).select(*fields,
+                           left=left,
+                           limitby=(0, 1)).first()
+
+    repr = s3_fullname(row.pr_person)
+    contact = row["pr_contact.value"]
+    if contact:
+        repr = "%s %s" % (repr, contact)
+    if show_link:
+        hr_type = row.get("hrm_human_resource.type")
+        if hr_type:
+            if hr_type == 1:
+                controller = "hrm"
+            else:
+                controller = "vol"
+        else:
+            controller = "pr"
+        request.extension = "html"
+        return A(repr,
+                 _href = URL(c = controller,
+                             f = "person",
+                             args = [id, "contacts"]
+                             )
+                 )
+    return repr
+
+# =============================================================================
+>>>>>>> flavour/master
 def req_item():
     """
         REST Controller
@@ -702,7 +763,7 @@ def req_item():
                                      label = str(T("Request from Facility")),
                                      )
         if s3.actions:
-            s3.actions += [req_item_inv_item_btn]
+            s3.actions.append(req_item_inv_item_btn)
         else:
             s3.actions = [req_item_inv_item_btn]
 
@@ -812,14 +873,14 @@ def req_item_inv_item():
 
     response.view = "req/req_item_inv_item.html"
     s3.actions = [dict(url = URL(c = request.controller,
-                                          f = "req",
-                                          args = [req_item.req_id, "req_item"],
-                                          vars = dict(req_item_id = req_item_id,
-                                                      inv_item_id = "[id]")
-                                         ),
-                                _class = "action-btn",
-                                label = str(T("Request From")),
-                                )]
+                                 f = "req",
+                                 args = [req_item.req_id, "req_item"],
+                                 vars = dict(req_item_id = req_item_id,
+                                              inv_item_id = "[id]")
+                                 ),
+                       _class = "action-btn",
+                       label = str(T("Request From")),
+                       )]
 
     return output
 
@@ -837,11 +898,12 @@ def req_skill():
         if r.interactive or r.representation == "aadata":
             list_fields = s3db.get_config("req_req_skill", "list_fields")
             list_fields.insert(1, "req_id$site_id")
+            # @ToDo: Do this based on active gis_config/gis_hierarchy
             list_fields.insert(1, "req_id$site_id$location_id$L4")
             list_fields.insert(1, "req_id$site_id$location_id$L3")
 
             s3db.configure("req_req_skill",
-                           insertable=False,
+                           insertable = False,
                            list_fields = list_fields,
                            )
 
@@ -888,7 +950,8 @@ def commit():
         # & can only make single-person commitments
         # (This should have happened in the main commitment)
         s3db.configure(tablename,
-                       insertable=False)
+                       insertable = False,
+                       )
 
     def prep(r):
 
@@ -924,8 +987,7 @@ $('#req_commit_site_id_link').click(function(){
  return true
 })''')
                     # Dropdown not Autocomplete
-                    itable = s3db.req_commit_item
-                    itable.req_item_id.widget = None
+                    s3db.req_commit_item.req_item_id.widget = None
                     
                     # Options updater for inline items
                     if not r.component:
@@ -1008,30 +1070,26 @@ $.filterOptionsS3({
                     table.site_id.writable = False
 
         if r.component:
-            req_id = r.record.req_id
-            if r.component.name == "commit_item":
+            if r.component_name == "commit_item":
                 # Limit commit items to items from the request
                 s3db.req_commit_item.req_item_id.requires = \
-                    IS_ONE_OF(db,
-                              "req_req_item.id",
+                    IS_ONE_OF(db, "req_req_item.id",
                               s3db.req_item_represent,
-                              orderby = "req_req_item.id",
                               filterby = "req_id",
-                              filter_opts = [req_id],
-                              sort=True
+                              filter_opts = [r.record.req_id],
+                              orderby = "req_req_item.id",
+                              sort = True,
                               )
-            elif r.component.name == "person":
-                pass
-                # Limit commit skills to skills from the request
-                #db.req_commit_skill.req_skill_id.requires = \
-                #    IS_ONE_OF(db,
-                #              "req_req_skill.id",
-                #              s3db.req_skill_represent,
-                #              orderby = "req_req_skill.id",
-                #              filterby = "req_id",
-                #              filter_opts = [req_id],
-                #              sort=True
-                #              )
+            #elif r.component_name == "person":
+            #    # Limit commit skills to skills from the request
+            #    db.req_commit_skill.req_skill_id.requires = \
+            #        IS_ONE_OF(db, "req_req_skill.id",
+            #                  s3db.req_skill_represent,
+            #                  filterby = "req_id",
+            #                  filter_opts = [r.record.req_id],
+            #                  orderby = "req_req_skill.id",
+            #                  sort = True,
+            #                  )
         return True
     s3.prep = prep
 
@@ -1054,7 +1112,7 @@ $.filterOptionsS3({
         return output
     s3.postp = postp
 
-    return s3_rest_controller(rheader=commit_rheader)
+    return s3_rest_controller(rheader = commit_rheader)
 
 # -----------------------------------------------------------------------------
 def commit_rheader(r):
@@ -1160,7 +1218,8 @@ def send():
     """ RESTful CRUD controller """
 
     s3db.configure("inv_send",
-                   listadd=False)
+                   listadd = False,
+                   )
 
     return s3db.inv_send_controller()
 
@@ -1471,6 +1530,7 @@ def send_req():
 # =============================================================================
 def commit_item_json():
     """
+       @ToDo: docstring to explain where this is used
     """
 
     ctable = s3db.req_commit

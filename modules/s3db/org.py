@@ -2,7 +2,7 @@
 
 """ Sahana Eden Organisation Model
 
-    @copyright: 2009-2014 (c) Sahana Software Foundation
+    @copyright: 2009-2015 (c) Sahana Software Foundation
     @license: MIT
 
     Permission is hereby granted, free of charge, to any person
@@ -903,17 +903,6 @@ class S3OrganisationModel(S3Model):
             @param attr: request attributes
         """
 
-        response = current.response
-        resource = r.resource
-        table = resource.table
-        settings = current.deployment_settings
-
-        use_branches = settings.get_org_branches()
-
-        # Query comes in pre-filtered to accessible & deletion_status
-        # Respect response.s3.filter
-        resource.add_filter(response.s3.filter)
-
         _vars = current.request.get_vars
 
         # JQueryUI Autocomplete uses "term"
@@ -930,11 +919,26 @@ class S3OrganisationModel(S3Model):
                             "Missing option! Require value")
             raise HTTP(400, body=output)
 
+        response = current.response
+        resource = r.resource
+        table = resource.table
+        settings = current.deployment_settings
+
+        use_branches = settings.get_org_branches()
+        search_l10n = settings.get_L10n_translate_org_organisation()
+
+        # Query comes in pre-filtered to accessible & deletion_status
+        # Respect response.s3.filter
+        resource.add_filter(response.s3.filter)
+
         query = (FS("organisation.name").lower().like(value + "%")) | \
                 (FS("organisation.acronym").lower().like(value + "%"))
         if use_branches:
             query |= (FS("parent.name").lower().like(value + "%")) | \
                      (FS("parent.acronym").lower().like(value + "%"))
+        if search_l10n:
+            query |= (FS("name.name_l10n").lower().like(value + "%")) | \
+                     (FS("name.acronym_l10n").lower().like(value + "%"))
         resource.add_filter(query)
 
         MAX_SEARCH_RESULTS = settings.get_search_max_results()
@@ -954,6 +958,10 @@ class S3OrganisationModel(S3Model):
                       ]
             if use_branches:
                 fields.append("parent.name")
+            if search_l10n:
+                fields += ["name.name_l10n",
+                           "name.acronym_l10n",
+                           ]
 
             rows = resource.select(fields,
                                    start=0,
@@ -964,12 +972,16 @@ class S3OrganisationModel(S3Model):
             append = output.append
             for row in rows:
                 acronym = ""
-                if use_branches:
+                if use_branches or search_l10n:
                     _row = row[table]
                 else:
                     _row = row
-                name = _row.name
-                acronym = _row.acronym
+                if search_l10n:
+                    name = row["org_organisation_name.name_l10n"] or _row.name
+                    acronym = row["org_organisation_name.acronym_l10n"] or _row.acronym
+                else:
+                    name = _row.name
+                    acronym = _row.acronym
                 record = dict(id = _row.id,
                               name = name,
                               )
@@ -1014,6 +1026,7 @@ class S3OrganisationNameModel(S3Model):
     def model(self):
 
         T = current.T
+        l10n_languages = current.deployment_settings.get_L10n_languages()
 
         # ---------------------------------------------------------------------
         # Local Names
@@ -2213,7 +2226,9 @@ class S3OrganisationServiceModel(S3Model):
         #
         tablename = "org_service"
         define_table(tablename,
-                     Field("name", length=128, notnull=True, unique=True,
+                     Field("name", length=128, notnull=True,
+                           # Comment this if we need to support the same service at different locations in hierarchy
+                           unique = True,
                            label = T("Name"),
                            ),
                      Field("parent", "reference org_service", # This form of hierarchy may not work on all Databases
@@ -2273,6 +2288,8 @@ class S3OrganisationServiceModel(S3Model):
                                      )
 
         configure(tablename,
+                  # If we need to support the same service at different locations in hierarchy
+                  #deduplicate = self.org_service_deduplicate,
                   hierarchy = hierarchy,
                   )
 
@@ -2304,6 +2321,26 @@ class S3OrganisationServiceModel(S3Model):
 
         # Pass names back to global scope (s3.*)
         return dict()
+
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def org_service_deduplicate(item):
+        """ Import item de-duplication """
+
+        data = item.data
+        name = data.get("name")
+        if name:
+            table = item.table
+            query = (table.name == name)
+            parent = data.get("parent")
+            if parent:
+                query &= (table.parent == parent)
+            duplicate = current.db(query).select(table.id,
+                                                 limitby=(0, 1)).first()
+
+            if duplicate:
+                item.id = duplicate.id
+                item.method = item.METHOD.UPDATE
 
     # -------------------------------------------------------------------------
     @staticmethod
@@ -3034,6 +3071,7 @@ class S3FacilityModel(S3Model):
         define_table(tablename,
                      Field("name",
                            label = T("Name"),
+                           requires = IS_NOT_EMPTY(),
                            ),
                      Field("parent", "reference org_facility_type", # This form of hierarchy may not work on all Databases
                            label = T("SubType of"),
@@ -3884,6 +3922,27 @@ class S3OfficeModel(S3Model):
                      s3_comments(),
                      *s3_meta_fields())
 
+        form_fields = ["name",
+                       "code",
+                       "organisation_id",
+                       "office_type_id",
+                       "location_id",
+                       "phone1",
+                       "phone2",
+                       "email",
+                       "fax",
+                       "obsolete",
+                       "comments",
+                       ]
+        org_summary = settings.get_org_summary()
+        if org_summary:
+            # Include Summary fields in form
+            position = form_fields.index("email")
+            form_fields.insert(position+1, "summary.national_staff")
+            form_fields.insert(position+2, "summary.international_staff")
+
+        crud_form = S3SQLCustomForm(*form_fields)
+
         # CRUD strings
         crud_strings[tablename] = Storage(
             label_create = T("Create Office"),
@@ -3964,6 +4023,7 @@ class S3OfficeModel(S3Model):
                              "organisation": "organisation_id",
                              "org_group": "organisation_id$group_membership.group_id",
                              },
+                  crud_form = crud_form,
                   deduplicate = self.org_office_duplicate,
                   filter_widgets = filter_widgets,
                   list_fields = list_fields,
@@ -3988,10 +4048,11 @@ class S3OfficeModel(S3Model):
                   update_realm = True,
                   )
 
-        if settings.get_org_summary():
+        if org_summary:
             add_components(tablename,
                            org_office_summary = {"name": "summary",
                                                  "joinby": "office_id",
+                                                 "multiple": False,
                                                  },
                            )
 
@@ -4508,7 +4569,7 @@ class org_OrganisationRepresent(S3Represent):
             else:
                 left = [ltable.on(ltable.organisation_id == otable.id),
                         ]
-        
+
         qty = len(values)
         if qty == 1:
             query = (otable.id == values[0])
@@ -5265,16 +5326,13 @@ def org_organisation_controller():
 
     # Post-process
     def postp(r, output):
-        if r.interactive:
-            cname = r.component_name
-            if cname == "human_resource":
-                # Modify action button to open staff instead of human_resource
-                # (Delete not overridden to keep errors within Tab)
-                read_url = URL(c="hrm", f="staff", args=["[id]"])
-                update_url = URL(c="hrm", f="staff", args=["[id]", "update"])
-                S3CRUD.action_buttons(r, read_url=read_url,
-                                         update_url=update_url)
-
+        if r.interactive and r.component_name == "human_resource":
+            # Modify action button to open staff instead of human_resource
+            # (Delete not overridden to keep errors within Tab)
+            read_url = URL(c="hrm", f="staff", args=["[id]"])
+            update_url = URL(c="hrm", f="staff", args=["[id]", "update"])
+            S3CRUD.action_buttons(r, read_url=read_url,
+                                     update_url=update_url)
         return output
     s3.postp = postp
 
@@ -5430,85 +5488,13 @@ def org_office_controller():
 
     # Post-process
     def postp(r, output):
-        if r.interactive:
-            if not r.component and \
-               settings.get_org_summary():
-                # Insert fields to view/record the summary data
-                # @ToDo: Re-implement using http://eden.sahanafoundation.org/wiki/S3SQLForm
-                table = s3db.org_office_summary
-                field1 = table.national_staff
-                field2 = table.international_staff
-                row = None
-                if r.id:
-                    query = (table.office_id == r.id)
-                    row = current.db(query).select(field1,
-                                                   field2,
-                                                   limitby=(0, 1)).first()
-                s3_formstyle = settings.get_ui_formstyle()
-                if r.method == "read" and \
-                   "item" in output:
-                    for field in [field1, field2]:
-                        if row:
-                            widget = row[field]
-                        else:
-                            widget = current.messages["NONE"]
-                        field_id = "%s_%s" % (table._tablename, field.name)
-                        label = field.label
-                        label = LABEL(label, _for=field_id,
-                                      _id=field_id + SQLFORM.ID_LABEL_SUFFIX)
-                        row_id = field_id + SQLFORM.ID_ROW_SUFFIX
-                        comment = ""
-                        rows = s3_formstyle(row_id, label, widget, comment)
-                        try:
-                            # Insert Label row
-                            output["item"][0].insert(-2, rows[0])
-                        except:
-                            pass
-                        try:
-                            # Insert Widget row
-                            output["item"][0].insert(-2, rows[1])
-                        except:
-                            # A non-standard formstyle with just a single row
-                            pass
-
-                elif r.method not in ("import", "map") and \
-                     "form" in output:
-
-                    sep = ": "
-                    for field in [field1, field2]:
-                        if row:
-                            default = row[field]
-                        else:
-                            default = field.default
-                        widget = field.widget or SQLFORM.widgets.integer.widget(field, default)
-                        field_id = "%s_%s" % (table._tablename, field.name)
-                        label = field.label
-                        label = LABEL(label, label and sep, _for=field_id,
-                                      _id=field_id + SQLFORM.ID_LABEL_SUFFIX)
-                        comment = field.comment or ""
-                        row_id = field_id + SQLFORM.ID_ROW_SUFFIX
-                        rows = s3_formstyle(row_id, label, widget, comment)
-                        try:
-                            # Insert Label row
-                            output["form"][0].insert(-4, rows[0])
-                        except:
-                            pass
-                        try:
-                            # Insert Widget row
-                            output["form"][0].insert(-4, rows[1])
-                        except:
-                            # A non-standard formstyle with just a single row
-                            pass
-
-            else:
-                cname = r.component_name
-                if cname == "human_resource":
-                    # Modify action button to open staff instead of human_resource
-                    # (Delete not overridden to keep errors within Tab)
-                    read_url = URL(c="hrm", f="staff", args=["[id]"])
-                    update_url = URL(c="hrm", f="staff", args=["[id]", "update"])
-                    S3CRUD.action_buttons(r, read_url=read_url,
-                                             update_url=update_url)
+        if r.interactive and r.component_name == "human_resource":
+            # Modify action button to open staff instead of human_resource
+            # (Delete not overridden to keep errors within Tab)
+            read_url = URL(c="hrm", f="staff", args=["[id]"])
+            update_url = URL(c="hrm", f="staff", args=["[id]", "update"])
+            S3CRUD.action_buttons(r, read_url=read_url,
+                                     update_url=update_url)
         return output
     s3.postp = postp
 
