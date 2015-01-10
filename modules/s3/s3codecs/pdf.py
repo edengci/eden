@@ -79,6 +79,7 @@ try:
     from reportlab.lib.colors import Color
     from reportlab.lib.pagesizes import A4, LETTER, landscape, portrait
     from reportlab.platypus.flowables import Flowable
+    from reportlab.pdfbase.ttfonts import TTFont
     reportLabImported = True
 except ImportError:
     reportLabImported = False
@@ -89,6 +90,26 @@ except ImportError:
 
 PDF_WIDTH = 0
 PDF_HEIGHT = 1
+
+font_set = current.deployment_settings.get_pdf_export_font()
+font_name = font_set[0]
+font_name_bold = font_set[1]
+
+try:
+    # Requires the font-file at /static/fonts/<font_name>.ttf
+    pdfmetrics.registerFont(TTFont(font_name, os.path.join(current.request.folder,
+                                                           "static",
+                                                           "fonts",
+                                                           font_name + ".ttf")))
+    # Requires the font-file at /static/fonts/<font_name_bold>.ttf
+    pdfmetrics.registerFont(TTFont(font_name_bold, os.path.join(current.request.folder,
+                                                                "static",
+                                                                "fonts",
+                                                                font_name_bold + ".ttf")))
+except:
+    # Using the default "Helvetica" and "Helvetica-bold"
+    font_name = "Helvetica"
+    font_name_bold = "Helvetica-bold"
 
 # =============================================================================
 class S3RL_PDF(S3Codec):
@@ -240,7 +261,7 @@ class S3RL_PDF(S3Codec):
 
         styleSheet = getSampleStyleSheet()
         style = styleSheet["Normal"]
-        style.fontName = "Helvetica"
+        style.fontName = font_name
         style.fontSize = 9
         if not body_flowable:
             body_flowable = [Paragraph("", style)]
@@ -1069,11 +1090,11 @@ class S3PDFTable(object):
                    (should work but need to test with a split table)
         """
 
-        style = [("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        style = [("FONTNAME", (0, 0), (-1, -1), font_name),
                  ("FONTSIZE", (0, 0), (-1, -1), self.fontsize),
                  ("VALIGN", (0, 0), (-1, -1), "TOP"),
                  ("LINEBELOW", (0, 0), (endCol, 0), 1, Color(0, 0, 0)),
-                 ("FONTNAME", (0, 0), (endCol, 0), "Helvetica-Bold"),
+                 ("FONTNAME", (0, 0), (endCol, 0), font_name_bold),
                 ]
         sappend = style.append
         if colour_required:
@@ -1091,7 +1112,7 @@ class S3PDFTable(object):
                 if colour_required:
                     sappend(("BACKGROUND", (0, i), (endCol, i),
                              self.headerColour))
-                sappend(("FONTNAME", (0, i), (endCol, i), "Helvetica-Bold"))
+                sappend(("FONTNAME", (0, i), (endCol, i), font_name_bold))
                 sappend(("SPAN", (0, i), (endCol, i)))
                 sappend(("LEFTPADDING", (0, i), (endCol, i), 6 * level))
             elif i > 0:
@@ -1123,13 +1144,13 @@ class S3html2pdf():
         self.fontsize = 10
         styleSheet = getSampleStyleSheet()
         self.plainstyle = styleSheet["Normal"]
-        self.plainstyle.fontName = "Helvetica"
+        self.plainstyle.fontName = font_name
         self.plainstyle.fontSize = 9
         self.boldstyle = deepcopy(styleSheet["Normal"])
-        self.boldstyle.fontName = "Helvetica-Bold"
+        self.boldstyle.fontName = font_name_bold
         self.boldstyle.fontSize = 10
         self.titlestyle = deepcopy(styleSheet["Normal"])
-        self.titlestyle.fontName = "Helvetica-Bold"
+        self.titlestyle.fontName = font_name_bold
         self.titlestyle.fontSize = 16
         self.normalstyle = self.plainstyle
         # To add more pdf styles define the style above (just like the titlestyle)
@@ -1308,7 +1329,7 @@ class S3html2pdf():
 
         style = [("FONTSIZE", (0, 0), (-1, -1), self.fontsize),
                  ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                 ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                 ("FONTNAME", (0, 0), (-1, -1), font_name),
                  ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                  ]
         content = []
@@ -1364,7 +1385,7 @@ class S3html2pdf():
                             rappend(result)
                             if isinstance(component, TH):
                                 sappend(("BACKGROUND", (colCnt, rowCnt), (colCnt, rowCnt), colors.lightgrey))
-                                sappend(("FONTNAME", (colCnt, rowCnt), (colCnt, rowCnt), "Helvetica-Bold"))
+                                sappend(("FONTNAME", (colCnt, rowCnt), (colCnt, rowCnt), font_name_bold))
                             if colspan > 1:
                                 for i in xrange(1, colspan):
                                     rappend("")
