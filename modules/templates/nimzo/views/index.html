@@ -1,0 +1,90 @@
+{{extend "layout.html"}}
+
+<center>
+	<h1 class="main-heading ui huge icon header">
+		<i class="emergency icon"></i>
+		<div class="content">
+			Sahana Eden
+			<div class="sub header">
+			    Humanitarian Management Platform
+			</div>
+		</div>
+		
+	</h1>
+</center>
+
+<div class="ui divider"></div>
+
+<div class="main-shoutout">
+	<center>
+	<div class="flowchart">
+		<div class="ui huge buttons">
+			<div class="ui red labeled icon dropdown button">
+ 				<i class="fire icon"></i>
+			    <span class="text">Situation</span>
+			    <div class="menu">
+			    	<a class="item" href="/eden/hrm/staff">
+			    		Staff
+			    	</a>
+			    	<a class="item" href="/eden/vol/volunteer">
+			    		Volunteers
+			    	</a>
+			    	<a class="item" href="/eden/event/incident_report">
+			    		Incident
+			    	</a>
+			    	<a class="item" href="/eden/survey/series">
+			    		Assessments
+			    	</a>
+			    	<a class="item" href="/eden/asset/asset">
+			    		Assets
+			    	</a>
+			    	<a class="item" href="/eden/inv/inv_item">
+			    		Inventory Items
+			    	</a>
+			    </div>
+			</div>
+			<div class="ui orange labeled icon dropdown button">
+ 				<i class="table icon"></i>
+			    <span class="text">Decision</span>
+			    <div class="menu">
+			    	<a class="item" href="/eden/req/req">
+			    		Requests
+			    	</a>
+			    </div>
+			</div>
+			<div class="ui green labeled icon dropdown button">
+ 				<i class="fire extinguisher icon"></i>
+			    <span class="text">Response</span>
+			    <div class="menu">
+			    	<a class="item" href="/eden/project/project">
+			    		Projects
+			    	</a>
+			    	<a class="item" href="/eden/req/commit">
+			    		Commitment
+			    	</a>
+					<a class="item" href="/eden/inv/send">
+						Sent Shipments
+					</a>
+					<a class="item" href="/eden/inv/recv">
+						Received Shipments
+					</a>
+			    </div>
+			</div>
+		</div>
+	</div>
+	</center>
+
+	<br><br><br>
+
+	{{if AUTHENTICATED not in session.s3.roles:}}
+		<div class="ui middle aligned grid">
+			<div class="column">
+				<div class="ui segment">
+					<h2 class="ui header">Login</h2>
+					{{=login_form}}
+				</div>
+			</div>
+		</div>
+	{{pass}}
+</div>
+

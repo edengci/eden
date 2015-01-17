@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  {{theme=response.s3.theme}}
+  <title>
+    {{try:}}{{=title}}{{except:}}{{=response.title or settings.get_system_name_short()}}{{pass}}
+  </title>
+
+  <link rel="shortcut icon" href="/{{=appname}}/static/favicon.ico" type="image/x-icon" />
+
+  {{for sheet in s3.external_stylesheets:}}
+    <link href="{{=sheet}}" rel="stylesheet" type="text/css" media="screen" charset="utf-8" />
+  {{pass}}
+
+  {{include "semantic.css.html"}}
+  {{for sheet in s3.stylesheets:}}
+    <link href="/{{=appname}}/static/styles/{{=sheet}}" rel="stylesheet" type="text/css" media="screen" charset="utf-8" />
+  {{pass}}
+
+  {{if s3.debug:}}
+    {{=s3base.s3_include_debug_css()}}
+  {{else:}}
+    <link href="/{{=appname}}/static/themes/{{=theme}}/eden.min.css" rel="stylesheet" type="text/css" />
+  {{pass}}
+
+  {{if response.refresh:}}{{=XML(response.refresh)}}{{pass}}
+
+  {{include "scripts_top.html"}}
+</head>
+<body>
+  {{include}}
+
+  {{include "scripts.html"}}
+  {{include "semantic.js.html"}}
+</body>
+
+
+</html>
