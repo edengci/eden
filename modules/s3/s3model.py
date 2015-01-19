@@ -342,7 +342,6 @@ class S3Model(object):
         # Define importer tables
         from s3import import S3Importer, S3ImportJob
 
-        S3Importer.define_upload_table()
         S3ImportJob.define_job_table()
         S3ImportJob.define_item_table()
 

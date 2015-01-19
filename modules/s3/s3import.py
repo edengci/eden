@@ -219,7 +219,7 @@ class S3Importer(S3Method):
         self.controller_tablename = self.tablename
 
         # Table for uploads
-        self.__define_table()
+        self.upload_table = current.s3db[self.UPLOAD_TABLE_NAME]
         self.upload_resource = None
         self.item_resource = None
 
@@ -229,7 +229,7 @@ class S3Importer(S3Method):
 
         # Check authorization
         permitted = current.auth.s3_has_permission
-        authorised = permitted("create", self.upload_tablename) and \
+        authorised = permitted("create", self.UPLOAD_TABLE_NAME) and \
                      permitted("create", self.controller_tablename)
         if not authorised:
             if r.method is not None:
@@ -1546,7 +1546,7 @@ class S3Importer(S3Method):
             Set the resource and the table to being s3_import_upload
         """
 
-        self.tablename = self.upload_tablename
+        self.tablename = self.UPLOAD_TABLE_NAME
         if self.upload_resource is None:
             self.upload_resource = current.s3db.resource(self.tablename)
         self.resource = self.upload_resource
@@ -1572,130 +1572,6 @@ class S3Importer(S3Method):
         if self.item_resource == None:
             self.item_resource = current.s3db.resource(self.tablename)
         self.resource = self.item_resource
-
-    # -------------------------------------------------------------------------
-    def __define_table(self):
-        """ Configures the upload table """
-
-        _debug("S3Importer.__define_table()")
-
-        T = current.T
-        db = current.db
-        request = current.request
-
-        self.upload_tablename = self.UPLOAD_TABLE_NAME
-
-        import_upload_status = {
-            1: T("Pending"),
-            2: T("In error"),
-            3: T("Completed"),
-        }
-
-        def user_name_represent(id):
-            # @todo: use s3_represent_user?
-
-            if not id:
-                return current.messages["NONE"]
-            table = db.auth_user
-            row = db(table.id == id).select(table.first_name,
-                                            table.last_name,
-                                            limitby=(0, 1)).first()
-            try:
-                return "%s %s" % (row.first_name, row.last_name)
-            except:
-                return current.messages.UNKNOWN_OPT
-
-        def status_represent(index):
-            if index is None:
-                return current.messages.UNKNOWN_OPT
-            else:
-                return import_upload_status[index]
-
-        now = request.utcnow
-        table = self.define_upload_table()
-        table.file.upload_folder = os.path.join(request.folder,
-                                                "uploads",
-                                                #"imports"
-                                                )
-        messages = self.messages
-        table.file.comment = DIV(_class="tooltip",
-                                 _title="%s|%s" % (messages.import_file,
-                                                   messages.import_file_comment))
-        table.file.label = messages.import_file
-        table.status.requires = IS_IN_SET(import_upload_status, zero=None)
-        table.status.represent = status_represent
-        table.user_id.label = messages.user_name
-        table.user_id.represent = user_name_represent
-        table.created_on.default = now
-        table.created_on.represent = self.date_represent
-        table.modified_on.default = now
-        table.modified_on.update = now
-        table.modified_on.represent = self.date_represent
-
-        table.replace_option.label = T("Replace")
-
-        self.upload_table = db[self.UPLOAD_TABLE_NAME]
-
-    # -------------------------------------------------------------------------
-    @classmethod
-    def define_upload_table(cls):
-        """ Defines the upload table """
-
-
-        # @todo: move into s3db/s3.py
-        db = current.db
-        if cls.UPLOAD_TABLE_NAME not in db:
-            db.define_table(cls.UPLOAD_TABLE_NAME,
-                            Field("controller",
-                                  readable=False,
-                                  writable=False),
-                            Field("function",
-                                  readable=False,
-                                  writable=False),
-                            Field("file", "upload",
-                                  uploadfolder=os.path.join(current.request.folder,
-                                                            "uploads", "imports"),
-                                  autodelete=True),
-                            Field("filename",
-                                  readable=False,
-                                  writable=False),
-                            Field("status", "integer",
-                                  default=1,
-                                  readable=False,
-                                  writable=False),
-                            Field("extra_data",
-                                  readable=False,
-                                  writable=False),
-                            Field("replace_option", "boolean",
-                                  default=False,
-                                  readable=False,
-                                  writable=False),
-                            Field("job_id", length=128,
-                                  readable=False,
-                                  writable=False),
-                            Field("user_id", "integer",
-                                  readable=False,
-                                  writable=False),
-                            Field("created_on", "datetime",
-                                  readable=False,
-                                  writable=False),
-                            Field("modified_on", "datetime",
-                                  readable=False,
-                                  writable=False),
-                            Field("summary_added", "integer",
-                                  readable=False,
-                                  writable=False),
-                            Field("summary_error", "integer",
-                                  readable=False,
-                                  writable=False),
-                            Field("summary_ignored", "integer",
-                                  readable=False,
-                                  writable=False),
-                            Field("completed_details", "text",
-                                  readable=False,
-                                  writable=False))
-
-        return db[cls.UPLOAD_TABLE_NAME]
 
 # =============================================================================
 class S3ImportItem(object):
