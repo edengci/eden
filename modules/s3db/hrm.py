@@ -165,6 +165,7 @@ class S3HRModel(S3Model):
                                  ),
                      *s3_meta_fields())
 
+        tooltip = T("If you don't see the Department in the list, you can add a new one by clicking link 'Create Department' ")
         label_create = T("Create Department")
         crud_strings[tablename] = Storage(
             label_create = label_create,
@@ -193,7 +194,9 @@ class S3HRModel(S3Model):
             sortby = "name",
             comment = S3AddResourceLink(c="vol" if group == "volunteer" else "hrm",
                                         f="department",
-                                        label=label_create),
+                                        label=label_create,
+                                        title=label_create,
+                                        tooltip=tooltip),
             )
 
         configure("hrm_department",
